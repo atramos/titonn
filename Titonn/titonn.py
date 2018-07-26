@@ -23,13 +23,14 @@ import tensorflow as tf
 import numpy
 sess = tf.Session()
 
+FIRST = ord('a')
+LAST = ord('f')
 def onehot(str):
-    chars = list(map(lambda c: max(0, ord(c) - 48), list(str)))
-    twoDim = sess.run(tf.one_hot(chars, 122 - 48))
+    chars = list(map(lambda c: max(0, ord(c) - FIRST), list(str)))
+    twoDim = sess.run(tf.one_hot(chars, LAST - FIRST))
     # flatten the 2D array:
     return [item for sublist in twoDim for item in sublist]
     
-
 import pandas
 df = pandas.read_csv(sys.argv[1])
 train_inputs = df['input'].map(onehot).values.tolist()
@@ -46,40 +47,46 @@ INPUT_SAMPLES = len(train_inputs)
 INPUT_VARS = len(train_inputs[0])
 OUTPUT_SAMPLES = len(train_labels)
 OUTPUT_CLASSES = len(train_labels[0])
+HIDDEN=100
+num_epochs = 100000
+learning_rate = 0.001
+
 print("is=%d iv=%d os=%d oc=%d" % (INPUT_SAMPLES, INPUT_VARS, OUTPUT_SAMPLES, OUTPUT_CLASSES))
-test_inputs = train_inputs
-test_labels = train_labels
 
-def next_batch(batch_size):
-    return train_inputs, train_labels
+# setup the Neural Network
+X = tf.placeholder(tf.float32, shape=[None, INPUT_VARS])
+Y = tf.placeholder(tf.float32, shape=[None, OUTPUT_CLASSES])
+parameters = {
+    'W1': tf.Variable(tf.random_normal([INPUT_VARS, HIDDEN])),
+    'b1': tf.Variable(tf.random_normal([HIDDEN])),
+    'W2': tf.Variable(tf.random_normal([HIDDEN, OUTPUT_CLASSES])),
+    'b2': tf.Variable(tf.random_normal([OUTPUT_CLASSES]))
+}
 
-# Create the model
-x = tf.placeholder(tf.float32, [None, INPUT_VARS])
-W = tf.Variable(tf.zeros([INPUT_VARS, OUTPUT_CLASSES]))
-b = tf.Variable(tf.zeros([OUTPUT_CLASSES]))
-y = tf.matmul(x, W) + b
+print('W1: ' + str(parameters['W1']))
+print('b1: ' + str(parameters['b1']))
+print('X: ' + str(X))
+print('W2: ' + str(parameters['W2']))
+print('b2: ' + str(parameters['b2']))
+print('Y: ' + str(Y))
 
-# Define loss and optimizer
-y_ = tf.placeholder(tf.int64, [None])
+Z1 = tf.add(tf.matmul(X, parameters['W1']), parameters['b1'])
+A2 = tf.nn.relu(Z1)
+Z2 = tf.add(tf.matmul(A2, parameters['W2']), parameters['b2']) 
+cost = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(logits=Z2,  labels=Y))
 
-cross_entropy = tf.losses.sparse_softmax_cross_entropy(labels=y_, logits=y)
-train_step = tf.train.GradientDescentOptimizer(0.5).minimize(cross_entropy)
+optimizer = tf.train.AdamOptimizer(learning_rate=learning_rate).minimize(cost)
+init = tf.global_variables_initializer()
 
-sess = tf.Session()
-tf.global_variables_initializer().run(session=sess)
-# Train
-for epoch in range(1000):
-  batch_xs, batch_ys = next_batch(100)
-  _,cost = sess.run(train_step, feed_dict={x: batch_xs, y_: batch_ys})
-  if epoch % 200 == 0:
-      print ("Cost after epoch %i: %f" % (epoch, cost))
+with tf.Session() as sess:
+    sess.run(init)
+    for epoch in range(num_epochs):
+        _ , c = sess.run([optimizer, cost], feed_dict={X: train_inputs, Y: train_labels}) 
+        if c <= 0.0005:
+            break
+        if epoch % 200 == 0:
+            print ("Cost after epoch %i: %f" % (epoch, c))
 
-# Test trained model
-correct_prediction = tf.equal(tf.argmax(y, 1), y_)
-accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
-print(sess.run(
-    accuracy, feed_dict={
-        x: test_inputs,
-        y_: test_labels
-    }))
-
+    # Test predictions by computing the output using training set as input
+    output = sess.run(Z2, feed_dict={X: training_x})
+    print(np.array2string(output, precision=3))
