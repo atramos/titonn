@@ -18,27 +18,35 @@ Originally from https://www.tensorflow.org/get_started/mnist/beginners
 from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
-
 import sys
-
 import tensorflow as tf
+import numpy
+sess = tf.Session()
 
 def onehot(str):
-    chars = list(map(ord, list(str)))
-    return tf.one_hot(chars, 256)
+    chars = list(map(lambda c: max(0, ord(c) - 48), list(str)))
+    twoDim = sess.run(tf.one_hot(chars, 122 - 48))
+    # flatten the 2D array:
+    return [item for sublist in twoDim for item in sublist]
+    
 
-#from tensorflow.examples.tutorials.mnist import input_data
-# nah: use hard-coded input and labels for demonstration
 import pandas
 df = pandas.read_csv(sys.argv[1])
-train_inputs = df['input'].map(onehot)
-train_labels = df['output'].map(onehot)
+train_inputs = df['input'].map(onehot).values.tolist()
+train_labels = df['output'].map(onehot).values.tolist()
+sess.close()
+
 print('INPUTS:\n' + str(train_inputs))
 print('OUTPUTS:\n' + str(train_labels))
+
+import code
+#code.interact(local=locals())
+
 INPUT_SAMPLES = len(train_inputs)
 INPUT_VARS = len(train_inputs[0])
 OUTPUT_SAMPLES = len(train_labels)
 OUTPUT_CLASSES = len(train_labels[0])
+print("is=%d iv=%d os=%d oc=%d" % (INPUT_SAMPLES, INPUT_VARS, OUTPUT_SAMPLES, OUTPUT_CLASSES))
 test_inputs = train_inputs
 test_labels = train_labels
 
@@ -57,8 +65,8 @@ y_ = tf.placeholder(tf.int64, [None])
 cross_entropy = tf.losses.sparse_softmax_cross_entropy(labels=y_, logits=y)
 train_step = tf.train.GradientDescentOptimizer(0.5).minimize(cross_entropy)
 
-sess = tf.InteractiveSession()
-tf.global_variables_initializer().run()
+sess = tf.Session()
+tf.global_variables_initializer().run(session=sess)
 # Train
 for epoch in range(1000):
   batch_xs, batch_ys = next_batch(100)
