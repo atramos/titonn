@@ -28,28 +28,16 @@ import pandas
 sess = tf.Session()
 dir_path = os.path.dirname(os.path.realpath(__file__))
 print('{}/model.ckpt'.format(dir_path))
-FIRST = ord('a')
-LAST = ord('f')
-N_CODES = 7
+N_BITS = 7
 
-def onehot(str):
-    chars = list(map(lambda c: max(0, ord(c) - FIRST), list(str)))
-    print(str, chars)
-
-    twoDim = lambda x: map(int, list(str(int(x, 2))))
-    # twoDim = sess.run(tf.one_hot(chars, N_CODES))
-    # flatten the 2D array:
-    # print(twoDim)
-    return [item for sublist in twoDim for item in sublist]
-
-def myEncoding(string):
+def encoder(string):
     chars = list(map(ord, string))
     twoDim = [list(map(np.float32,list(str(format(i,'07b'))))) for i in chars]
     return [item for sublist in twoDim for item in sublist]
 
 df = pandas.read_csv(sys.argv[1])
-train_inputs = df['input'].map(myEncoding).values.tolist()
-train_labels = df['output'].map(myEncoding).values.tolist()
+train_inputs = df['input'].map(encoder).values.tolist()
+train_labels = df['output'].map(encoder).values.tolist()
 sess.close()
 print('INPUTS:')
 pprint(train_inputs)
@@ -57,25 +45,25 @@ print('OUTPUTS:')
 pprint(train_labels)
 
 SAMPLES = len(train_inputs)
-INPUT_VAR_CODES = len(train_inputs[0])
-INPUT_VARS = INPUT_VAR_CODES // N_CODES
-OUTPUT_VAR_CODES = len(train_labels[0])
-OUTPUT_VARS = OUTPUT_VAR_CODES // N_CODES
+INPUT_VAR_BITS = len(train_inputs[0])
+INPUT_VARS = INPUT_VAR_BITS // N_BITS
+OUTPUT_VAR_BITS = len(train_labels[0])
+OUTPUT_VARS = OUTPUT_VAR_BITS // N_BITS
 HIDDEN=10
 num_epochs = 100000
 learning_rate = 0.0005
 
-print("is=%d iv=%d os=%d oc=%d" % (SAMPLES, INPUT_VAR_CODES, SAMPLES, OUTPUT_VAR_CODES))
+print("is=%d iv=%d os=%d oc=%d" % (SAMPLES, INPUT_VAR_BITS, SAMPLES, OUTPUT_VAR_BITS))
 
 # setup the Neural Network
-X = tf.placeholder(tf.float32, shape=[1, INPUT_VAR_CODES])
-Y = tf.placeholder(tf.float32, shape=[1, OUTPUT_VAR_CODES])
+X = tf.placeholder(tf.float32, shape=[1, INPUT_VAR_BITS])
+Y = tf.placeholder(tf.float32, shape=[1, OUTPUT_VAR_BITS])
 
 parameters = {
-        'W1': tf.Variable(tf.random_normal([INPUT_VAR_CODES, HIDDEN])),
+        'W1': tf.Variable(tf.random_normal([INPUT_VAR_BITS, HIDDEN])),
         'b1': tf.Variable(tf.random_normal([HIDDEN])),
-        'W2': tf.Variable(tf.random_normal([HIDDEN, OUTPUT_VAR_CODES])),
-        'b2': tf.Variable(tf.random_normal([OUTPUT_VAR_CODES]))
+        'W2': tf.Variable(tf.random_normal([HIDDEN, OUTPUT_VAR_BITS])),
+        'b2': tf.Variable(tf.random_normal([OUTPUT_VAR_BITS]))
     }
 
 def neural_net(X,parameters):
@@ -92,8 +80,8 @@ def trainLoop(init, optimizer, cost):
         while epoch<num_epochs:
             for i in range(SAMPLES):
                 _ , c = sess.run([optimizer, cost], feed_dict={
-                    X: np.reshape(train_inputs[i],[1,INPUT_VAR_CODES]), 
-                    Y: np.reshape(train_labels[i],[1,OUTPUT_VAR_CODES])
+                    X: np.reshape(train_inputs[i],[1,INPUT_VAR_BITS]), 
+                    Y: np.reshape(train_labels[i],[1,OUTPUT_VAR_BITS])
                 }) 
                 if c <= 0.000001:
                     saver.save(sess, '{}/model.ckpt'.format(dir_path))
@@ -106,7 +94,7 @@ def trainLoop(init, optimizer, cost):
 def train(X):
     Z = neural_net(X,parameters)
     c = Z[0]
-    cost = tf.reduce_sum(tf.pow(c-Y[0], 2)) / (2 * N_CODES)
+    cost = tf.reduce_sum(tf.pow(c-Y[0], 2)) / (2 * N_BITS)
     optimizer = tf.train.AdamOptimizer(learning_rate).minimize(cost)
     init = tf.global_variables_initializer()
 
@@ -121,16 +109,16 @@ def train(X):
         for row in range(len(train_inputs)):
 
             g = train_inputs[row]
-            g = np.reshape(g,[1,INPUT_VAR_CODES])
+            g = np.reshape(g,[1,INPUT_VAR_BITS])
             output = neural_net(g,parameters)
             outputs = []
             for i in range(OUTPUT_VARS):
-                kk = output[0][N_CODES*i : N_CODES*i+N_CODES]
+                kk = output[0][N_BITS*i : N_BITS*i+N_BITS]
                 outputs.append(kk)
                 
             
             out = sess.run(outputs)
-            out = np.reshape(list(map(list,out)), [1, OUTPUT_VAR_CODES])[0].tolist()
+            out = np.reshape(list(map(list,out)), [1, OUTPUT_VAR_BITS])[0].tolist()
             out = list(map(lambda x: "%+0.1f" % x, out))
             print("\nROW #" + str(row))
             print("Expected: " + ' '.join(list(map(lambda x: "%+0.1f" % x, train_labels[row]))))
