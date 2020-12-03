@@ -30,7 +30,7 @@ dir_path = os.path.dirname(os.path.realpath(__file__))
 print('{}/model.ckpt'.format(dir_path))
 FIRST = ord('a')
 LAST = ord('f')
-N_CODES = (LAST - FIRST)+1
+N_CODES = 7
 
 def onehot(str):
     chars = list(map(lambda c: max(0, ord(c) - FIRST), list(str)))
@@ -44,7 +44,7 @@ def onehot(str):
 
 def myEncoding(string):
     chars = list(map(ord, string))
-    twoDim = [list(map(int,list(str(format(i,'b'))))) for i in chars]
+    twoDim = [list(map(np.float32,list(str(format(i,'07b'))))) for i in chars]
     return [item for sublist in twoDim for item in sublist]
 
 df = pandas.read_csv(sys.argv[1])
@@ -97,7 +97,6 @@ def trainLoop(init, optimizer, cost):
                 }) 
                 if c <= 0.000001:
                     saver.save(sess, '{}/model.ckpt'.format(dir_path))
-                    epoch = num_epochs
                     return (epoch, c)
             if epoch % 200 == 0:
                 print ("Cost after epoch %i: %f" % (epoch, c))
@@ -106,17 +105,9 @@ def trainLoop(init, optimizer, cost):
     
 def train(X):
     Z = neural_net(X,parameters)
-    costs = []
-    optimizers = []
-    for i in range(OUTPUT_VARS):
-        c = Z[0][N_CODES*i:N_CODES*i+N_CODES]
-        costs.append(tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(logits=c,  labels=Y[0][N_CODES*i:N_CODES*i+N_CODES])))
-        optimizer_k = optimizers.append(tf.train.AdamOptimizer(learning_rate=learning_rate).minimize(costs[i]))
-    optimizer = tf.group(*optimizers)
-    tf.Print('costs:',costs)
-    cost = tf.reduce_sum(costs)
-    print(costs)
-    optimizer = tf.train.AdamOptimizer(learning_rate=learning_rate).minimize(cost)
+    c = Z[0]
+    cost = tf.reduce_sum(tf.pow(c-Y[0], 2)) / (2 * N_CODES)
+    optimizer = tf.train.AdamOptimizer(learning_rate).minimize(cost)
     init = tf.global_variables_initializer()
 
     (epoch, c) = trainLoop(init, optimizer, cost)
@@ -134,17 +125,17 @@ def train(X):
             output = neural_net(g,parameters)
             outputs = []
             for i in range(OUTPUT_VARS):
-                kk = tf.nn.softmax(output[0][N_CODES*i : N_CODES*i+N_CODES])
+                kk = output[0][N_CODES*i : N_CODES*i+N_CODES]
                 outputs.append(kk)
                 
             
             out = sess.run(outputs)
             out = np.reshape(list(map(list,out)), [1, OUTPUT_VAR_CODES])[0].tolist()
-            out = list(map(lambda x: float("%.1f" % x), out))
+            out = list(map(lambda x: "%+0.1f" % x, out))
             print("\nROW #" + str(row))
-            print("Expected: " + str(train_labels[row]))
+            print("Expected: " + ' '.join(list(map(lambda x: "%+0.1f" % x, train_labels[row]))))
             row = row + 1
-            print("Actual..: " + str(out))
+            print("Actual..: " + ' '.join(out))
             
 
         #import code
