@@ -32,14 +32,24 @@ N_CODES = (LAST - FIRST)+1
 
 def onehot(str):
 	chars = list(map(lambda c: max(0, ord(c) - FIRST), list(str)))
-	twoDim = sess.run(tf.one_hot(chars, N_CODES))
+	print(str, chars)
+
+	twoDim = lambda x: map(int, list(str(int(x, 2))))
+	# twoDim = sess.run(tf.one_hot(chars, N_CODES))
 	# flatten the 2D array:
+	# print(twoDim)
 	return [item for sublist in twoDim for item in sublist]
+
+def myEncoding(string):
+	chars = list(map(ord, string))
+	twoDim = [list(map(int,list(str(format(i,'b'))))) for i in chars]
+	return [item for sublist in twoDim for item in sublist]
+
 	
 import pandas
 df = pandas.read_csv(sys.argv[1])
-train_inputs = df['input'].map(onehot).values.tolist()
-train_labels = df['output'].map(onehot).values.tolist()
+train_inputs = df['input'].map(myEncoding).values.tolist()
+train_labels = df['output'].map(myEncoding).values.tolist()
 sess.close()
 print('INPUTS:')
 pprint(train_inputs)
